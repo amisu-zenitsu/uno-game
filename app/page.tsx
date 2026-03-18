@@ -34,17 +34,8 @@ export default function Home() {
     // create multiple orphaned socket connections that break the host state.
     const initSocket = () => {
       // Dynamically connect to the socket server
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      
-      // When hosting locally, the Next.js app is on 3000, and Socket.IO is on 3001.
-      // When tunneling via pinggy/ngrok, we expect the tunnel to point to 3001, OR 
-      // the user runs two tunnels. For simplicity of testing now, we will assume 
-      // if it's localhost, we force 3001. If it's a public URL, we just use that URL directly.
-      const serverUrl = isLocalhost 
-        ? `${window.location.protocol}//${window.location.hostname}:3001` 
-        : window.location.origin;
-      
-      newSocket = io(serverUrl);
+      // The custom server now handles both Next.js and Socket.IO on the exact same port natively.
+      newSocket = io(window.location.origin);
       setSocket(newSocket);
 
       newSocket.on("connect", () => {

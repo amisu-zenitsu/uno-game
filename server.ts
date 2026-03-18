@@ -1,17 +1,24 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-
+import next from 'next';
 import { generateDeck, shuffleDeck } from './lib/gameLogic';
 
-const httpServer = createServer();
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*", // Adjust this in production
-    methods: ["GET", "POST"]
-  }
-});
+const dev = process.env.NODE_ENV !== 'production';
+const hostname = 'localhost';
+const port = parseInt(process.env.PORT || '3000', 10);
+const app = next({ dev, hostname, port });
+const handler = app.getRequestHandler();
 
 const rooms = new Map();
+
+app.prepare().then(() => {
+  const httpServer = createServer(handler);
+  const io = new Server(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
 
 // Helper to handle auto-play when AFK timer expires
 function handleAutoPlay(roomId: string, playerId: string) {
@@ -723,9 +730,10 @@ io.on('connection', (socket) => {
       }
     }
   });
-});
+  }); // End io.on('connection')
 
-const PORT = 3001;
-httpServer.listen(PORT, () => {
-  console.log(`Socket.io generic Uno server running on port ${PORT}`);
-});
+  httpServer.listen(port, () => {
+    console.log(`> Ready on http://${hostname}:${port}`);
+    console.log(`> Custom Socket.io Next.js server running in ${dev ? 'development' : 'production'} mode`);
+  });
+}); // End app.prepare()
