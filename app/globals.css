@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-uno-red: #ff5555;
+  --color-uno-blue: #5555ff;
+  --color-uno-green: #55aa55;
+  --color-uno-yellow: #ffaa00;
+  --color-uno-wild: #212121;
+}
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b;
+    --foreground: #fafafa;
+  }
+}
+
+body {
+  background-color: #2e1065; /* Deep purple */
+  color: white;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
+  /* Add an animated premium gradient background */
+  background: radial-gradient(circle at 10% 20%, rgba(255, 85, 85, 0.4), transparent 45%),
+              radial-gradient(circle at 90% 15%, rgba(85, 85, 255, 0.4), transparent 45%),
+              radial-gradient(circle at 20% 80%, rgba(255, 170, 0, 0.4), transparent 45%),
+              radial-gradient(circle at 80% 90%, rgba(85, 170, 85, 0.4), transparent 45%),
+              #2e1065;
+  background-attachment: fixed;
+}
