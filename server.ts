@@ -99,6 +99,7 @@ function handleAutoPlay(roomId: string, playerId: string) {
           if (room.players.length === 1) {
             const lastPlayer = room.players[0];
             room.winners.push({ id: lastPlayer.id, name: lastPlayer.name, rank: room.winners.length + 1 });
+            room.players = []; // CLEAR THE ARRAY so they don't get double appended on returnToLobby
           }
           room.status = 'finished';
           io.to(roomId).emit('gameEnded', { winners: room.winners });
@@ -231,6 +232,8 @@ io.on('connection', (socket) => {
     
     // Notify everyone in the room that a new player joined
     io.to(roomId).emit('playerJoined', {
+      playerId: socket.id,
+      playerName: requestedName,
       players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
     });
 

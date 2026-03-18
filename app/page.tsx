@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { AnimatePresence, motion } from "framer-motion";
+
+type ToastMessage = { id: number; text: string; type?: 'info' | 'error' | 'success' };
 import { Lobby } from "@/components/Lobby";
 import { GameRoom } from "@/components/GameRoom";
 import { Card } from "@/lib/gameLogic";
@@ -32,6 +35,16 @@ export default function Home() {
   const [turnStartTime, setTurnStartTime] = useState<number | null>(null);
   const [winners, setWinners] = useState<{ id: string, name: string, rank: number }[]>([]);
 
+  // Toast System
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const addToast = (text: string, type: 'info' | 'error' | 'success' = 'info') => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, text, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
+
   useEffect(() => {
     let newSocket: Socket | null = null;
     
@@ -47,27 +60,20 @@ export default function Home() {
         console.log("Connected to server:", newSocket?.id);
       });
 
-      newSocket.on("playerJoined", (data: { players: { id: string; name: string }[] }) => {
+      newSocket.on("playerJoined", (data: { playerId?: string; playerName?: string; players: { id: string; name: string }[] }) => {
         setPlayers(data.players);
+        if (data.playerName && data.playerId !== newSocket?.id) {
+            addToast(`${data.playerName} joined the room!`, 'success');
+        }
       });
 
       newSocket.on("playerLeft", (data: { playerId: string; playerName?: string; wasHost?: boolean; players: { id: string; name: string }[] }) => {
         setPlayers(data.players);
         
         if (data.wasHost && gameStatusRef.current === "lobby") {
-           const leave = window.confirm(`${data.playerName || 'The Host'} left the lobby! Do you want to leave too?`);
-           if (leave && roomIdRef.current) {
-               newSocket?.emit("leaveRoom", roomIdRef.current, (res: any) => {
-                   if (res?.success) {
-                       setRoomId(null);
-                       setGameStatus("lobby");
-                       setPlayers([]);
-                       setWinners([]);
-                   }
-               });
-           }
+           addToast(`${data.playerName || 'The Host'} left the lobby! The next player is now Host.`, 'info');
         } else if (data.playerName) {
-           alert(`${data.playerName} left the room.`);
+           addToast(`${data.playerName} left the room.`, 'info');
         }
       });
 
@@ -141,7 +147,7 @@ export default function Home() {
         setRoomId(response.roomId!);
         setIsHost(false);
       } else {
-        alert(response.message);
+        addToast(response.message || "Failed to join room", 'error');
       }
     });
   };
@@ -150,7 +156,7 @@ export default function Home() {
     if (!socket || !roomId) return;
     socket.emit("startGame", roomId, (response: { success: boolean; message?: string }) => {
       if (!response.success) {
-        alert(response.message);
+        addToast(response.message || "Failed to start game", 'error');
       }
     });
   };
@@ -159,37 +165,37 @@ export default function Home() {
   const handlePlayCards = (cards: Card[], declaredColor?: string) => {
     if (!socket || !roomId) return;
     socket.emit("playCard", { roomId, cards, declaredColor }, (res: any) => {
-      if (!res?.success) alert(res?.message || "Invalid move");
+      if (!res?.success) addToast(res?.message || "Invalid move", 'error');
     });
   };
 
   const handleDrawCard = () => {
     if (!socket || !roomId) return;
     socket.emit("drawCard", roomId, (res: any) => {
-      if (!res?.success) alert(res?.message || "Failed to draw");
+      if (!res?.success) addToast(res?.message || "Failed to draw", 'error');
     });
   };
 
   const handleDrawPenalty = () => {
     if (!socket || !roomId) return;
     socket.emit("drawPenalty", roomId, (res: any) => {
-      if (!res?.success) alert(res?.message || "Failed to draw penalty");
+      if (!res?.success) addToast(res?.message || "Failed to draw penalty", 'error');
     });
   };
 
   const handlePassTurn = () => {
     if (!socket || !roomId) return;
     socket.emit("passTurn", roomId, (res: any) => {
-      if (!res?.success) alert(res?.message || "Failed to pass");
+      if (!res?.success) addToast(res?.message || "Failed to pass", 'error');
     });
   };
 
   const handleCallUno = () => {
     if (!socket || !roomId) return;
     socket.emit("callUno", roomId, (res: any) => {
-      if (!res?.success) alert(res?.message || "Couldn't call UNO!");
-      else if (res.safe) alert("You are safe!");
-      else if (res.caught) alert("You caught them! They drew 2 cards!");
+      if (!res?.success) addToast(res?.message || "Couldn't call UNO!", 'error');
+      else if (res.safe) addToast("UNO! You are safe!", 'success');
+      else if (res.caught) addToast("You caught them! They drew 2 cards!", 'success');
     });
   };
 
@@ -213,7 +219,28 @@ export default function Home() {
   if (!socket) return null; // Wait for hydration / connection
 
   return (
-    <main className="min-h-screen relative">
+    <main className="min-h-screen relative overflow-hidden">
+      {/* Toast Notifications container */}
+      <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-3 pointer-events-none w-full max-w-sm px-4">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: -20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+              className={`px-4 py-3 rounded-xl shadow-2xl border text-sm font-bold text-center ${
+                toast.type === 'error' ? 'bg-red-900/90 border-red-500/50 text-red-100' :
+                toast.type === 'success' ? 'bg-green-900/90 border-green-500/50 text-green-100' :
+                'bg-zinc-800/90 border-zinc-500/50 text-zinc-100'
+              } backdrop-blur-md`}
+            >
+              {toast.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       {gameStatus === "lobby" ? (
         <Lobby
           roomId={roomId}
