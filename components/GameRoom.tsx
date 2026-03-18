@@ -17,6 +17,7 @@ interface GameRoomProps {
   players: GamePlayer[];
   hand: Card[];
   topCard: Card | null;
+  playedHistory?: Card[];
   currentTurn: string;
   currentColor: string | null;
   activePenalty: number;
@@ -37,6 +38,7 @@ export function GameRoom({
   players,
   hand,
   topCard,
+  playedHistory = [],
   currentTurn,
   currentColor,
   activePenalty,
@@ -255,26 +257,36 @@ export function GameRoom({
         <div className="flex flex-col items-center gap-4">
           <div className="relative transition-transform min-w-[128px]">
             <AnimatePresence mode="popLayout">
-              {topCard ? (
-                <motion.div
-                  key={topCard.id}
-                  initial={{ scale: 0.5, opacity: 0, rotate: Math.random() * 40 - 20, y: -50 }}
-                  animate={{ scale: 1, opacity: 1, rotate: Math.random() * 10 - 5, y: 0 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className="absolute inset-0"
-                >
-                  <UnoCard card={topCard} />
-                  
-                  {/* Show active color indicator if last card played was a Wild */}
-                  {topCard.color === 'Wild' && currentColor && (
-                    <div className="absolute -bottom-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-black shadow-xl">
-                      <div 
-                        className="h-4 w-4 rounded-full" 
-                        style={{ backgroundColor: currentColor === 'Yellow' ? '#ffaa00' : currentColor === 'Red' ? '#ff5555' : currentColor === 'Blue' ? '#5555ff' : '#55aa55' }}
-                      />
-                    </div>
-                  )}
-                </motion.div>
+              {playedHistory && playedHistory.length > 0 ? (
+                playedHistory.map((historyCard, idx) => {
+                  const isTop = idx === playedHistory.length - 1;
+                  const rotateOff = (idx - playedHistory.length + 1) * 8 + (Math.random() * 4 - 2);
+                  const xOff = (idx - playedHistory.length + 1) * 6;
+                  const yOff = (idx - playedHistory.length + 1) * 2;
+
+                  return (
+                    <motion.div
+                      key={historyCard.id + "-" + idx}
+                      initial={{ scale: 0.5, opacity: 0, rotate: Math.random() * 40 - 20, y: -50 }}
+                      animate={{ scale: 1, opacity: 1, rotate: rotateOff, x: xOff, y: yOff }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className="absolute inset-0"
+                      style={{ zIndex: idx }}
+                    >
+                      <UnoCard card={historyCard} />
+                      
+                      {/* Show active color indicator if last card played was a Wild */}
+                      {isTop && historyCard.color === 'Wild' && currentColor && (
+                        <div className="absolute -bottom-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-black shadow-xl">
+                          <div 
+                            className="h-4 w-4 rounded-full" 
+                            style={{ backgroundColor: currentColor === 'Yellow' ? '#ffaa00' : currentColor === 'Red' ? '#ff5555' : currentColor === 'Blue' ? '#5555ff' : '#55aa55' }}
+                          />
+                        </div>
+                      )}
+                    </motion.div>
+                  )
+                })
               ) : (
                 <div className="h-48 w-32 rounded-xl border-2 border-dashed border-white/20 bg-black/20" />
               )}

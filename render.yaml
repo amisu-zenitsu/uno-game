@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: uno-multiplayer
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render dynamically assigns the PORT variable, which server.ts will automatically use.

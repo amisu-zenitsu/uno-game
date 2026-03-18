@@ -25,6 +25,7 @@ export default function Home() {
   // Game State
   const [hand, setHand] = useState<Card[]>([]);
   const [topCard, setTopCard] = useState<Card | null>(null);
+  const [playedHistory, setPlayedHistory] = useState<Card[]>([]);
   const [currentTurn, setCurrentTurn] = useState<string>("");
   const [gamePlayers, setGamePlayers] = useState<{ id: string; name: string; cardCount: number }[]>([]);
   
@@ -69,7 +70,9 @@ export default function Home() {
       });
 
       newSocket.on("playerLeft", (data: { playerId: string; playerName?: string; wasHost?: boolean; players: { id: string; name: string }[] }) => {
-        setPlayers(data.players);
+        // Defensive uniqueness check ensuring the departed player is completely removed on frontend
+        const updatedPlayers = data.players.filter(p => p.id !== data.playerId);
+        setPlayers(updatedPlayers);
         
         if (data.wasHost && gameStatusRef.current === "lobby") {
            addToast(`${data.playerName || 'The Host'} left the lobby! The next player is now Host.`, 'info');
@@ -84,6 +87,7 @@ export default function Home() {
 
       newSocket.on("gameStarted", (data: { 
         topCard: Card; 
+        playedHistory?: Card[];
         currentTurn: string;
         currentColor?: string;
         activePenalty?: number;
@@ -94,6 +98,8 @@ export default function Home() {
       } | null) => {
         if (!data) return;
         setTopCard(data.topCard);
+        if (data.playedHistory) setPlayedHistory(data.playedHistory);
+        else if (data.topCard) setPlayedHistory([data.topCard]);
         setCurrentTurn(data.currentTurn);
         setGamePlayers(data.players);
         
@@ -258,6 +264,7 @@ export default function Home() {
             players={gamePlayers}
             hand={hand}
             topCard={topCard}
+            playedHistory={playedHistory}
             currentTurn={currentTurn}
             currentColor={currentColor}
             activePenalty={activePenalty}

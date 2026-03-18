@@ -4,7 +4,7 @@ import next from 'next';
 import { generateDeck, shuffleDeck } from './lib/gameLogic';
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const hostname = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
 const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
@@ -39,7 +39,41 @@ function handleAutoPlay(roomId: string, playerId: string) {
     );
     if (validStackCard) {
       // Auto-play the stack card
-      io.emit('fakeAutoPlay', { roomId, playerId, card: validStackCard }); // handled below
+      const idx = player.hand.findIndex((c: any) => c.id === validStackCard.id);
+      player.hand.splice(idx, 1);
+      room.playedCards.push(validStackCard);
+      io.to(player.id).emit('dealtCards', player.hand);
+      
+      if (validStackCard.value === 'DrawTwo') room.activePenalty += 2;
+      if (validStackCard.value === 'WildDrawFour') room.activePenalty += 4;
+      
+      room.currentColor = (validStackCard.color === 'Wild' || validStackCard.color === 'WildDrawFour') ? 'Red' : validStackCard.color;
+      
+      if (player.hand.length === 1) room.unCalledUno = player.id;
+      else if (room.unCalledUno === player.id) room.unCalledUno = null;
+
+      if (player.hand.length === 0) {
+         room.winners.push({ id: player.id, name: player.name, rank: room.winners.length + 1 });
+         room.players = room.players.filter((p: any) => p.id !== player.id);
+         io.to(player.id).emit('gameStarted', null); 
+
+         const winnersNeeded = Math.floor(room.initialPlayerCount / 2);
+         if (room.winners.length >= winnersNeeded || room.players.length <= 1) {
+           if (room.players.length === 1) {
+             const lastPlayer = room.players[0];
+             room.winners.push({ id: lastPlayer.id, name: lastPlayer.name, rank: room.winners.length + 1 });
+             room.players = []; 
+           }
+           room.status = 'finished';
+           io.to(roomId).emit('gameEnded', { winners: room.winners });
+           return;
+         }
+      }
+
+      const currentIndex = room.players.findIndex((p: any) => p.id === player.id);
+      let nextIndex = (currentIndex + (room.direction || 1)) % room.players.length;
+      if (nextIndex < 0) nextIndex += room.players.length;
+      setNextTurn(roomId, room.players[nextIndex].id, false);
       return; 
     } else {
       // Auto-draw penalty
@@ -159,6 +193,7 @@ function setNextTurn(roomId: string, nextPlayerId: string, hasDrawn: boolean = f
   // Broadcast the new state broadly
   io.to(roomId).emit('gameStarted', {
     topCard: room.playedCards[room.playedCards.length - 1],
+    playedHistory: room.playedCards.slice(-4),
     currentTurn: room.currentTurn,
     currentColor: room.currentColor,
     activePenalty: room.activePenalty,
@@ -180,6 +215,7 @@ io.on('connection', (socket) => {
     
     rooms.set(roomId, {
       id: roomId,
+      hostId: socket.id,
       players: [{ id: socket.id, name: playerName || 'Host', hand: [] }],
       deck: [],
       playedCards: [],
@@ -253,7 +289,19 @@ io.on('connection', (socket) => {
     const playerIndex = room.players.findIndex((p: any) => p.id === socket.id);
     if (playerIndex !== -1) {
       const playerThatLeft = room.players[playerIndex];
-      room.players.splice(playerIndex, 1);
+      const wasHost = playerIndex === 0;
+
+      // Completely remove player by unique id to prevent duplicates
+      room.players = room.players.filter((p: any) => p.id !== socket.id);
+      if (room.winners) {
+        room.winners = room.winners.filter((w: any) => w.id !== socket.id);
+      }
+
+      // If the outgoing player was the room's host, reassign the host gracefully
+      if (room.hostId === socket.id && room.players.length > 0) {
+         room.hostId = room.players[0].id;
+      }
+
       socket.leave(roomId);
       console.log(`Player ${socket.id} explicitly left room ${roomId}`);
 
@@ -264,7 +312,7 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('playerLeft', {
           playerId: socket.id,
           playerName: playerThatLeft.name,
-          wasHost: playerIndex === 0,
+          wasHost: wasHost,
           players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
         });
 
@@ -286,6 +334,7 @@ io.on('connection', (socket) => {
                // Even if it wasn't their turn, we need to re-emit gameStarted so remaining players' UI updates!
                io.to(roomId).emit('gameStarted', {
                   topCard: room.playedCards[room.playedCards.length - 1],
+    playedHistory: room.playedCards.slice(-4),
                   currentTurn: room.currentTurn,
                   currentColor: room.currentColor,
                   activePenalty: room.activePenalty,
@@ -378,10 +427,20 @@ io.on('connection', (socket) => {
     // Add winners back to the main room players array so they aren't kicked
     if (room.winners && room.winners.length > 0) {
       room.winners.forEach((w: any) => {
-        room.players.push({ id: w.id, name: w.name, hand: [] });
+        // Prevent duplicate appending if they somehow stayed in room.players
+        if (!room.players.some((p: any) => p.id === w.id)) {
+           room.players.push({ id: w.id, name: w.name, hand: [] });
+        }
       });
       room.winners = [];
     }
+
+    // Ensure the host returns to index 0 so they explicitly keep the 'Start Game' capabilities!
+    room.players.sort((a: any, b: any) => {
+       if (a.id === room.hostId) return -1;
+       if (b.id === room.hostId) return 1;
+       return 0;
+    });
 
     // Broadcast state to all
     io.to(roomId).emit('returnedToLobby', {
@@ -469,6 +528,7 @@ io.on('connection', (socket) => {
   
         io.to(roomId).emit('gameStarted', {
           topCard: room.playedCards[room.playedCards.length - 1],
+    playedHistory: room.playedCards.slice(-4),
           currentTurn: room.currentTurn,
           currentColor: room.currentColor,
           activePenalty: room.activePenalty,
@@ -724,6 +784,7 @@ io.on('connection', (socket) => {
       
       io.to(roomId).emit('gameStarted', {
         topCard: room.playedCards[room.playedCards.length - 1],
+    playedHistory: room.playedCards.slice(-4),
         currentTurn: room.currentTurn,
         currentColor: room.currentColor,
         activePenalty: room.activePenalty,
@@ -786,7 +847,18 @@ io.on('connection', (socket) => {
       
       if (playerIndex !== -1) {
         const playerThatLeft = room.players[playerIndex];
-        room.players.splice(playerIndex, 1);
+        const wasHost = playerIndex === 0;
+
+        room.players = room.players.filter((p: any) => p.id !== socket.id);
+        if (room.winners) {
+          room.winners = room.winners.filter((w: any) => w.id !== socket.id);
+        }
+
+        // Host re-assignment if the player suddenly disconnected mid-game
+        if (room.hostId === socket.id && room.players.length > 0) {
+            room.hostId = room.players[0].id;
+        }
+
         console.log(`Removed player ${socket.id} from room ${roomId}`);
         
         // If room is empty, delete it
@@ -798,7 +870,7 @@ io.on('connection', (socket) => {
           io.to(roomId).emit('playerLeft', {
             playerId: socket.id,
             playerName: playerThatLeft.name,
-            wasHost: playerIndex === 0,
+            wasHost: wasHost,
             players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
           });
           
