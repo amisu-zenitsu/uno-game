@@ -28,6 +28,7 @@ interface GameRoomProps {
   onDrawPenalty: () => void;
   onPassTurn: () => void;
   onCallUno: () => void;
+  onLeaveRoom: () => void;
 }
 
 export function GameRoom({
@@ -47,6 +48,7 @@ export function GameRoom({
   onDrawPenalty,
   onPassTurn,
   onCallUno,
+  onLeaveRoom,
 }: GameRoomProps) {
   const isMyTurn = currentTurn === myId;
   const opponents = players.filter((p) => p.id !== myId);
@@ -129,6 +131,13 @@ export function GameRoom({
           </span>{" "}
           <span className="ml-2 font-mono text-sm text-white">{roomId}</span>
         </div>
+        
+        <button
+          onClick={onLeaveRoom}
+          className="rounded-full bg-red-900/50 hover:bg-red-900/80 border border-red-500/30 px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-200 transition-colors backdrop-blur-md shadow-lg"
+        >
+          Leave Match
+        </button>
       </header>
 
       {/* Opponents Area (Top of screen) */}

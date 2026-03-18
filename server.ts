@@ -217,7 +217,15 @@ io.on('connection', (socket) => {
       return;
     }
 
-    room.players.push({ id: socket.id, name: playerName || `Player ${room.players.length + 1}`, hand: [] });
+    const requestedName = playerName || `Player ${room.players.length + 1}`;
+    const nameTaken = room.players.some((p: any) => p.name.toLowerCase() === requestedName.toLowerCase());
+    
+    if (nameTaken) {
+      if (typeof callback === 'function') callback({ success: false, message: 'Name is already taken in this room' });
+      return;
+    }
+
+    room.players.push({ id: socket.id, name: requestedName, hand: [] });
     socket.join(roomId);
     console.log(`Player ${socket.id} (${playerName}) joined room ${roomId}`);
     
@@ -229,6 +237,39 @@ io.on('connection', (socket) => {
     if (typeof callback === 'function') {
       callback({ success: true, roomId });
     }
+  });
+
+  // Explicitly Leave a Room
+  socket.on('leaveRoom', (roomId, callback) => {
+    const room = rooms.get(roomId);
+    if (!room) {
+       if (typeof callback === 'function') callback({ success: false });
+       return;
+    }
+
+    const playerIndex = room.players.findIndex((p: any) => p.id === socket.id);
+    if (playerIndex !== -1) {
+      room.players.splice(playerIndex, 1);
+      socket.leave(roomId);
+      console.log(`Player ${socket.id} explicitly left room ${roomId}`);
+
+      if (room.players.length === 0) {
+        if (room.timerId) clearTimeout(room.timerId);
+        rooms.delete(roomId);
+      } else {
+        io.to(roomId).emit('playerLeft', {
+          playerId: socket.id,
+          players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
+        });
+
+        if (room.status === 'playing' && room.players.length < 2) {
+          if (room.timerId) clearTimeout(room.timerId);
+          room.status = 'finished';
+          io.to(roomId).emit('gameEnded', { reason: 'Not enough players' });
+        }
+      }
+    }
+    if (typeof callback === 'function') callback({ success: true });
   });
 
   // Start the game and deal cards
@@ -718,11 +759,12 @@ io.on('connection', (socket) => {
           // Notify remaining players
           io.to(roomId).emit('playerLeft', {
             playerId: socket.id,
-            players: room.players.map((p: any) => p.id)
+            players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
           });
           
           // If the game was playing and only one player is left, end the game
           if (room.status === 'playing' && room.players.length < 2) {
+            if (room.timerId) clearTimeout(room.timerId);
             room.status = 'finished';
             io.to(roomId).emit('gameEnded', { reason: 'Not enough players' });
           }

@@ -176,6 +176,18 @@ export default function Home() {
     socket.emit("returnToLobby", roomId);
   };
 
+  const handleLeaveRoom = () => {
+    if (!socket || !roomId) return;
+    socket.emit("leaveRoom", roomId, (res: any) => {
+      if (res?.success) {
+        setRoomId(null);
+        setGameStatus("lobby"); // Technically redundant since roomId clears, but safe
+        setPlayers([]);
+        setWinners([]);
+      }
+    });
+  };
+
   if (!socket) return null; // Wait for hydration / connection
 
   return (
@@ -189,6 +201,7 @@ export default function Home() {
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
           onStartGame={handleStartGame}
+          onLeaveRoom={handleLeaveRoom}
         />
       ) : (
           <GameRoom
@@ -208,6 +221,7 @@ export default function Home() {
             onDrawPenalty={handleDrawPenalty}
             onPassTurn={handlePassTurn}
             onCallUno={handleCallUno}
+            onLeaveRoom={handleLeaveRoom}
           />
       )}
 

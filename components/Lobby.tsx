@@ -13,6 +13,7 @@ interface LobbyProps {
   onJoinRoom: (roomId: string, playerName: string) => void;
   onCreateRoom: (playerName: string) => void;
   onStartGame: () => void;
+  onLeaveRoom: () => void;
   players: LobbyPlayer[];
   roomId: string | null;
   isHost: boolean;
@@ -23,6 +24,7 @@ export function Lobby({
   onJoinRoom,
   onCreateRoom,
   onStartGame,
+  onLeaveRoom,
   players,
   roomId,
   isHost,
@@ -160,6 +162,12 @@ export function Lobby({
                 <p className="text-sm">Waiting for host to start...</p>
               </div>
             )}
+            <button
+              onClick={onLeaveRoom}
+              className="w-full mt-2 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-500/30 px-4 py-3 font-bold text-red-200 transition-colors"
+            >
+              Leave Lobby
+            </button>
           </div>
         )}
       </motion.div>
