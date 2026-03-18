@@ -249,6 +249,7 @@ io.on('connection', (socket) => {
 
     const playerIndex = room.players.findIndex((p: any) => p.id === socket.id);
     if (playerIndex !== -1) {
+      const playerThatLeft = room.players[playerIndex];
       room.players.splice(playerIndex, 1);
       socket.leave(roomId);
       console.log(`Player ${socket.id} explicitly left room ${roomId}`);
@@ -259,6 +260,8 @@ io.on('connection', (socket) => {
       } else {
         io.to(roomId).emit('playerLeft', {
           playerId: socket.id,
+          playerName: playerThatLeft.name,
+          wasHost: playerIndex === 0,
           players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
         });
 
@@ -779,6 +782,7 @@ io.on('connection', (socket) => {
       const playerIndex = room.players.findIndex((p: any) => p.id === socket.id);
       
       if (playerIndex !== -1) {
+        const playerThatLeft = room.players[playerIndex];
         room.players.splice(playerIndex, 1);
         console.log(`Removed player ${socket.id} from room ${roomId}`);
         
@@ -790,6 +794,8 @@ io.on('connection', (socket) => {
           // Notify remaining players
           io.to(roomId).emit('playerLeft', {
             playerId: socket.id,
+            playerName: playerThatLeft.name,
+            wasHost: playerIndex === 0,
             players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
           });
           

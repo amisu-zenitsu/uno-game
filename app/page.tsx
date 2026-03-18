@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { Lobby } from "@/components/Lobby";
 import { GameRoom } from "@/components/GameRoom";
@@ -9,9 +9,14 @@ import { Card } from "@/lib/gameLogic";
 export default function Home() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const roomIdRef = useRef(roomId);
+  useEffect(() => { roomIdRef.current = roomId; }, [roomId]);
+  
   const [players, setPlayers] = useState<{ id: string; name: string }[]>([]);
   const [isHost, setIsHost] = useState(false);
   const [gameStatus, setGameStatus] = useState<"lobby" | "playing" | "finished">("lobby");
+  const gameStatusRef = useRef(gameStatus);
+  useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
   
   // Game State
   const [hand, setHand] = useState<Card[]>([]);
@@ -46,8 +51,24 @@ export default function Home() {
         setPlayers(data.players);
       });
 
-      newSocket.on("playerLeft", (data: { playerId: string; players: { id: string; name: string }[] }) => {
+      newSocket.on("playerLeft", (data: { playerId: string; playerName?: string; wasHost?: boolean; players: { id: string; name: string }[] }) => {
         setPlayers(data.players);
+        
+        if (data.wasHost && gameStatusRef.current === "lobby") {
+           const leave = window.confirm(`${data.playerName || 'The Host'} left the lobby! Do you want to leave too?`);
+           if (leave && roomIdRef.current) {
+               newSocket?.emit("leaveRoom", roomIdRef.current, (res: any) => {
+                   if (res?.success) {
+                       setRoomId(null);
+                       setGameStatus("lobby");
+                       setPlayers([]);
+                       setWinners([]);
+                   }
+               });
+           }
+        } else if (data.playerName) {
+           alert(`${data.playerName} left the room.`);
+        }
       });
 
       newSocket.on("dealtCards", (cards: Card[]) => {
