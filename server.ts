@@ -262,10 +262,33 @@ io.on('connection', (socket) => {
           players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
         });
 
-        if (room.status === 'playing' && room.players.length < 2) {
-          if (room.timerId) clearTimeout(room.timerId);
-          room.status = 'finished';
-          io.to(roomId).emit('gameEnded', { reason: 'Not enough players' });
+        if (room.status === 'playing') {
+          if (room.players.length < 2) {
+            if (room.timerId) clearTimeout(room.timerId);
+            room.status = 'finished';
+            io.to(roomId).emit('gameEnded', { reason: 'Not enough players' });
+          } else {
+            // If the person who left was the active player, we MUST pass the turn so the game continues!
+            if (room.currentTurn === socket.id) {
+               // Player was removed, so `playerIndex` now points to the player AFTER them
+               let nextIndex = playerIndex % room.players.length;
+               if (room.direction === -1) {
+                  nextIndex = (playerIndex - 1 + room.players.length) % room.players.length;
+               }
+               setNextTurn(roomId, room.players[nextIndex].id, false);
+            } else {
+               // Even if it wasn't their turn, we need to re-emit gameStarted so remaining players' UI updates!
+               io.to(roomId).emit('gameStarted', {
+                  topCard: room.playedCards[room.playedCards.length - 1],
+                  currentTurn: room.currentTurn,
+                  currentColor: room.currentColor,
+                  activePenalty: room.activePenalty,
+                  hasDrawnThisTurn: room.hasDrawnThisTurn,
+                  unCalledUno: room.unCalledUno,
+                  players: room.players.map((p: any) => ({ id: p.id, name: p.name, cardCount: p.hand.length }))
+               });
+            }
+          }
         }
       }
     }
@@ -763,11 +786,32 @@ io.on('connection', (socket) => {
           });
           
           // If the game was playing and only one player is left, end the game
-          if (room.status === 'playing' && room.players.length < 2) {
+        if (room.status === 'playing') {
+          if (room.players.length < 2) {
             if (room.timerId) clearTimeout(room.timerId);
             room.status = 'finished';
             io.to(roomId).emit('gameEnded', { reason: 'Not enough players' });
+          } else {
+            // If the person who disconnected was the active player, we MUST pass the turn so the game continues!
+            if (room.currentTurn === socket.id) {
+               let nextIndex = playerIndex % room.players.length;
+               if (room.direction === -1) {
+                  nextIndex = (playerIndex - 1 + room.players.length) % room.players.length;
+               }
+               setNextTurn(roomId, room.players[nextIndex].id, false);
+            } else {
+               io.to(roomId).emit('gameStarted', {
+                  topCard: room.playedCards[room.playedCards.length - 1],
+                  currentTurn: room.currentTurn,
+                  currentColor: room.currentColor,
+                  activePenalty: room.activePenalty,
+                  hasDrawnThisTurn: room.hasDrawnThisTurn,
+                  unCalledUno: room.unCalledUno,
+                  players: room.players.map((p: any) => ({ id: p.id, name: p.name, cardCount: p.hand.length }))
+               });
+            }
           }
+        }
         }
       }
     }
