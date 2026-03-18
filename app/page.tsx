@@ -16,7 +16,8 @@ export default function Home() {
   useEffect(() => { roomIdRef.current = roomId; }, [roomId]);
   
   const [players, setPlayers] = useState<{ id: string; name: string }[]>([]);
-  const [isHost, setIsHost] = useState(false);
+  const isHost = players.length > 0 && socket ? players[0].id === socket.id : false;
+  
   const [gameStatus, setGameStatus] = useState<"lobby" | "playing" | "finished">("lobby");
   const gameStatusRef = useRef(gameStatus);
   useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
@@ -135,7 +136,6 @@ export default function Home() {
     if (!socket) return;
     socket.emit("createRoom", playerName, (response: { roomId: string; players: { id: string; name: string }[] }) => {
       setRoomId(response.roomId);
-      setIsHost(true);
       setPlayers(response.players);
     });
   };
@@ -145,7 +145,6 @@ export default function Home() {
     socket.emit("joinRoom", { roomId: id, playerName }, (response: { success: boolean; roomId?: string; message?: string }) => {
       if (response.success) {
         setRoomId(response.roomId!);
-        setIsHost(false);
       } else {
         addToast(response.message || "Failed to join room", 'error');
       }
