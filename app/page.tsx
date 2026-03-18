@@ -63,7 +63,8 @@ export default function Home() {
         unCalledUno?: string | null;
         turnStartTime?: number | null;
         players: { id: string; name: string; cardCount: number }[] 
-      }) => {
+      } | null) => {
+        if (!data) return;
         setTopCard(data.topCard);
         setCurrentTurn(data.currentTurn);
         setGamePlayers(data.players);

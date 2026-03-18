@@ -368,6 +368,14 @@ io.on('connection', (socket) => {
     room.timerId = null;
 
     room.players.forEach((p: any) => p.hand = []);
+    
+    // Add winners back to the main room players array so they aren't kicked
+    if (room.winners && room.winners.length > 0) {
+      room.winners.forEach((w: any) => {
+        room.players.push({ id: w.id, name: w.name, hand: [] });
+      });
+      room.winners = [];
+    }
 
     // Broadcast state to all
     io.to(roomId).emit('returnedToLobby', {
@@ -785,12 +793,12 @@ io.on('connection', (socket) => {
             players: room.players.map((p: any) => ({ id: p.id, name: p.name }))
           });
           
-          // If the game was playing and only one player is left, end the game
+        // If the game was playing and only one player is left, end the game
         if (room.status === 'playing') {
           if (room.players.length < 2) {
             if (room.timerId) clearTimeout(room.timerId);
             room.status = 'finished';
-            io.to(roomId).emit('gameEnded', { reason: 'Not enough players' });
+            io.to(roomId).emit('gameEnded', { winners: room.winners, reason: 'Not enough players' });
           } else {
             // If the person who disconnected was the active player, we MUST pass the turn so the game continues!
             if (room.currentTurn === socket.id) {
